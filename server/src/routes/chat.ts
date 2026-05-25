@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { chatSchema } from '../middleware/schemas.js';
+import { getSecret, getSetting } from '../lib/settings.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -10,9 +11,18 @@ router.use(authMiddleware);
 router.post('/', validate(chatSchema), async (req: AuthRequest, res: Response) => {
   const { message, history, taskContext } = req.body;
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const enabled = await getSetting('feature.ai_chat');
+  if (enabled === false) {
+    res.status(503).json({ error: 'AI chat is disabled by the administrator' });
+    return;
+  }
+
+  const apiKey = await getSecret('gemini.api_key', 'GEMINI_API_KEY');
   if (!apiKey) {
-    res.status(503).json({ error: 'Chat service not configured' });
+    res.status(503).json({
+      error: 'Chat service not configured',
+      hint: 'An administrator can add a Gemini API key in Settings → Integrations',
+    });
     return;
   }
 

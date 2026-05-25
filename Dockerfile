@@ -11,10 +11,6 @@ RUN npm ci --ignore-scripts
 # Copy source code
 COPY . .
 
-# Build-time env vars (passed via --build-arg)
-ARG GEMINI_API_KEY=""
-ENV GEMINI_API_KEY=${GEMINI_API_KEY}
-
 ENV NODE_OPTIONS="--max-old-space-size=1024"
 RUN npm run build
 

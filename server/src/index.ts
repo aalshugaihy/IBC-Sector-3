@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import pool from './db.js';
 import authRoutes from './routes/auth.js';
 import taskRoutes from './routes/tasks.js';
@@ -14,6 +14,9 @@ import customRoleRoutes from './routes/customRoles.js';
 import departmentRoutes from './routes/departments.js';
 import committeeRoutes from './routes/committees.js';
 import chatRoutes from './routes/chat.js';
+import settingsRoutes from './routes/settings.js';
+import systemRoutes from './routes/system.js';
+import bcrypt from 'bcryptjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -76,6 +79,29 @@ app.use('/api/custom-roles', customRoleRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/committees', committeeRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/system', systemRoutes);
+
+// In single-service deployments (e.g. Render), serve the built frontend
+// from the same Express process. SERVE_STATIC=true enables this; otherwise
+// the frontend is served separately by nginx/Vite as in the Docker setup.
+if (process.env.SERVE_STATIC === 'true') {
+  const candidatePaths = [
+    resolve(__dirname, '..', '..', 'dist'),
+    resolve(__dirname, '..', '..', '..', 'dist'),
+    resolve(process.cwd(), 'dist'),
+  ];
+  const staticDir = candidatePaths.find((p) => existsSync(join(p, 'index.html')));
+  if (staticDir) {
+    console.log(`Serving static frontend from ${staticDir}`);
+    app.use(express.static(staticDir, { maxAge: '1y', index: false }));
+    app.get(/^(?!\/api\/|\/health$).*/, (_req, res) => {
+      res.sendFile(join(staticDir, 'index.html'));
+    });
+  } else {
+    console.warn('SERVE_STATIC=true but no dist/index.html found in candidate paths');
+  }
+}
 
 // Initialize database schema
 async function initDB() {
@@ -96,8 +122,33 @@ async function initDB() {
   }
 }
 
+// Optional first-admin bootstrap. When BOOTSTRAP_ADMIN_EMAIL +
+// BOOTSTRAP_ADMIN_PASSWORD are set AND no users exist yet, create the
+// initial admin automatically. Useful for headless deployments where you
+// can't open the registration page.
+async function bootstrapAdmin() {
+  const email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim();
+  const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+  if (!email || !password) return;
+  try {
+    const { rows } = await pool.query('SELECT COUNT(*)::int AS c FROM users');
+    if (rows[0].c > 0) return;
+    const hash = await bcrypt.hash(password, 10);
+    const displayName = process.env.BOOTSTRAP_ADMIN_NAME || email.split('@')[0];
+    await pool.query(
+      `INSERT INTO users (email, password_hash, display_name, role, photo_url)
+       VALUES ($1, $2, $3, 'admin', $4)`,
+      [email, hash, displayName, `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`]
+    );
+    console.log(`Bootstrap admin created: ${email}`);
+  } catch (err) {
+    console.error('Bootstrap admin failed:', err);
+  }
+}
+
 async function start() {
   await initDB();
+  await bootstrapAdmin();
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
   });

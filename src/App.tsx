@@ -12,6 +12,7 @@ import { ReportGenerator } from './components/ReportGenerator';
 import { SectorCalendar } from './components/SectorCalendar';
 import { Chatbot } from './components/Chatbot';
 import { UserManagement } from './components/UserManagement';
+import { SystemSettings } from './components/SystemSettings';
 import { MyTasks } from './components/MyTasks';
 import { NotificationCenter } from './components/NotificationCenter';
 import { Footer } from './components/Footer';
@@ -21,7 +22,7 @@ import { INITIAL_TASKS } from './constants';
 import {
   LayoutDashboard, ListTodo, FileText, LogOut, User as UserIcon,
   Loader2, BarChart3, Columns, Users, Moon, Sun, Globe, Plus,
-  Calendar as CalendarIcon, AlertCircle, Briefcase
+  Calendar as CalendarIcon, AlertCircle, Briefcase, Settings as SettingsIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
@@ -37,6 +38,7 @@ const TAB_ROUTES = [
 ];
 
 const ADMIN_TAB = { path: '/users', icon: <Users size={16} />, labelKey: 'userManagement' };
+const SETTINGS_TAB = { path: '/settings', icon: <SettingsIcon size={16} />, labelKey: 'systemSettings' };
 
 function AppLayout() {
   const { t, i18n } = useTranslation();
@@ -209,7 +211,7 @@ function AppLayout() {
   }
 
   const isRTL = i18n.language === 'ar';
-  const tabs = [...TAB_ROUTES, ...(appUser?.role === 'admin' ? [ADMIN_TAB] : [])];
+  const tabs = [...TAB_ROUTES, ...(appUser?.role === 'admin' ? [ADMIN_TAB, SETTINGS_TAB] : [])];
 
   // Derive page title key from route
   const pageTitleKey = activeTab === '/my-tasks' ? 'myTasks' : activeTab === '/users' ? 'userManagement' : activeTab.slice(1) || 'dashboard';
@@ -424,6 +426,11 @@ function AppLayout() {
                       onUpdateDepartment={handleUpdateDepartment}
                       onDeleteDepartment={handleDeleteDepartment}
                     />
+                  : <Navigate to="/dashboard" replace />
+              } />
+              <Route path="/settings" element={
+                appUser?.role === 'admin'
+                  ? <SystemSettings />
                   : <Navigate to="/dashboard" replace />
               } />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
