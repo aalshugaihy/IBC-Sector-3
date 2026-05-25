@@ -1,33 +1,74 @@
 # النشر على Render — قطاع الاستثمار وخدمات الأعمال
 
 دليل النشر الاحترافي للتطبيق على منصة [Render](https://render.com). يستخدم
-ملف `render.yaml` (Blueprint) لإنشاء **قاعدة بيانات PostgreSQL مدارة + خدمة
-ويب موحدة** تشغّل الـ Express API وتقدّم واجهة React المبنية معاً.
+ملف `render.yaml` لإنشاء **خدمة ويب موحّدة** تشغّل الـ Express API وتقدّم
+واجهة React المبنية معاً. **قاعدة البيانات منفصلة** — اختر أي مزوّد
+PostgreSQL يدعم TLS (Render أو Neon أو Supabase).
+
+> ⚠️ **ملاحظة عن خطة Render المجانية:** تسمح بقاعدة بيانات مجانية
+> **واحدة فقط** لكل حساب. لذلك أبقينا قاعدة البيانات خارج الـ blueprint
+> لتعمل سواء كان لديك قاعدة بيانات سابقة أو لا.
 
 ---
 
-## الخيار ١: النشر بنقرة واحدة (Blueprint)
+## الخطوة ١: تجهيز قاعدة البيانات
 
-ادفع المستودع إلى GitHub أولاً، ثم اتبع:
+اختر **أحد** الخيارات التالية:
 
-1. ادخل إلى [dashboard.render.com](https://dashboard.render.com)
-2. **New → Blueprint**
-3. اربط المستودع `aalshugaihy/ibc-sector-3`
-4. Render يقرأ `render.yaml` تلقائياً ويعرض الموارد التي ستُنشأ:
-   - قاعدة بيانات `ibc-sector-3-db` (PostgreSQL 16)
-   - خدمة ويب `ibc-sector-3` (Node)
-5. اضغط **Apply**
+### الخيار أ: Render PostgreSQL (إن لم تكن لديك قاعدة مجانية أخرى)
 
-عند أول نشر، Render سيبني التطبيق ثم ينشره. تحصل على رابط:
-`https://ibc-sector-3.onrender.com`
+١. **New → PostgreSQL**
+٢. الاسم: `ibc-sector-3-db` — Database: `ibc_tasks` — User: `ibc`
+٣. المنطقة: `Frankfurt` (أقرب للسعودية)
+٤. الخطة: `Free`
+٥. بعد الإنشاء، انسخ **Internal Database URL**
 
-### المتغيرات الإضافية (اختياري)
+### الخيار ب: Neon (موصى به إن كانت قاعدتك المجانية مشغولة)
 
-كل مفاتيح التكامل قابلة للإدارة **من داخل التطبيق** عبر صفحة
-**الإعدادات → مفاتيح التكامل** (للأدمن فقط)، وتُخزَّن مشفّرة بـ AES-256-GCM
-في جدول `system_settings`. لا حاجة لإعادة نشر عند تغييرها.
+١. أنشئ مشروعاً مجانياً على [neon.tech](https://neon.tech)
+٢. Region: أقرب منطقة (Frankfurt مثلاً)
+٣. انسخ **Connection string** (يجب أن يحتوي `sslmode=require`)
 
-بدلاً من ذلك يمكنك تعريفها كمتغيرات بيئة (الأولوية لقيم قاعدة البيانات):
+### الخيار ج: Supabase
+
+١. أنشئ مشروعاً مجانياً على [supabase.com](https://supabase.com)
+٢. Project Settings → Database → **Connection string (URI)**
+٣. استبدل `[YOUR-PASSWORD]` بكلمة المرور التي وضعتها
+
+### الخيار د: استخدام قاعدة بيانات Render مجانية موجودة
+
+ادخل قاعدتك الحالية → انسخ **Internal Database URL**. نفس القاعدة تستطيع
+استضافة جداول التطبيقات المختلفة بدون تعارض (التطبيق ينشئ جداوله تلقائياً
+بمسمياتها الخاصة).
+
+---
+
+## الخطوة ٢: نشر التطبيق (Blueprint)
+
+١. ادخل إلى [dashboard.render.com](https://dashboard.render.com)
+٢. **New → Blueprint**
+٣. اربط المستودع `aalshugaihy/ibc-sector-3`
+٤. Render يقرأ `render.yaml` ويعرض **خدمة الويب** فقط (`ibc-sector-3`)
+٥. اضغط **Apply**
+
+عند طلب القيم اليدوية (`sync: false`)، الصق:
+
+| المتغير | القيمة |
+|---------|--------|
+| `DATABASE_URL` | (الصق connection string من الخطوة ١) |
+| `CORS_ORIGIN` | اتركه فارغاً (الواجهة والخادم على نفس الـ origin) |
+| `GEMINI_API_KEY` | اتركه فارغاً (أضفه لاحقاً من واجهة الإعدادات) |
+| `BOOTSTRAP_ADMIN_EMAIL` | (اختياري) بريدك للحساب الأول |
+| `BOOTSTRAP_ADMIN_PASSWORD` | (اختياري) كلمة مرور قوية مؤقتة |
+
+اضغط **Apply** — Render سيبني التطبيق وينشره خلال ٣-٥ دقائق.
+
+### الرابط النهائي
+
+`https://ibc-sector-3.onrender.com` — قد يختلف الاسم؛ الرابط الفعلي يظهر
+في لوحة الخدمة.
+
+### المتغيرات الإضافية
 
 | المتغير | القيمة المقترحة | متى يكون مطلوباً |
 |---------|----------------|------------------|
@@ -38,61 +79,43 @@
 
 ---
 
-## الخيار ٢: النشر اليدوي (خطوة بخطوة)
-
-### ١. إنشاء قاعدة البيانات
-
-- **New → PostgreSQL**
-- Name: `ibc-sector-3-db`
-- Database: `ibc_tasks`
-- User: `ibc`
-- Region: `Frankfurt` (أقرب للسعودية)
-- Plan: `Free` (256 MB) أو `Starter` للإنتاج
-- بعد الإنشاء، انسخ **Internal Database URL**
-
-### ٢. إنشاء خدمة الويب
-
-- **New → Web Service**
-- اربط مستودع GitHub
-- Region: `Frankfurt`
-- Branch: `main`
-- Runtime: `Node`
-
-**Build Command:**
-```bash
-npm install --include=dev && cd server && npm install --include=dev && cd .. && npm run build && cd server && npm run build && cp src/schema.sql dist/schema.sql
-```
-
-**Start Command:**
-```bash
-cd server && node dist/index.js
-```
-
-**Health Check Path:** `/health`
-
-### ٣. متغيرات البيئة
-
-| المفتاح | القيمة |
-|---------|--------|
-| `NODE_ENV` | `production` |
-| `SERVE_STATIC` | `true` |
-| `PGSSL` | `true` |
-| `DATABASE_URL` | (الصق Internal Database URL من الخطوة ١) |
-| `JWT_SECRET` | استخدم زر **Generate** لتوليد قيمة آمنة |
-| `GEMINI_API_KEY` | (اختياري — للذكاء الاصطناعي) |
-
-### ٤. النشر
-
-اضغط **Create Web Service**. خلال ٣–٥ دقائق ستحصل على الرابط العام.
-
----
-
-## ما بعد النشر
+## الخطوة ٣: ما بعد النشر
 
 ### تسجيل أول مستخدم (admin)
 
-افتح الرابط، اذهب إلى **Register**، وسجّل أول حساب. **أول مستخدم يصبح
-admin تلقائياً** ويستطيع دعوة بقية المستخدمين من واجهة إدارة الصلاحيات.
+افتح الرابط → **Register** → أوّل مستخدم يصبح admin تلقائياً.
+
+(أو إذا ضبطت `BOOTSTRAP_ADMIN_EMAIL` + `BOOTSTRAP_ADMIN_PASSWORD`، فقط
+سجّل دخول بهذه البيانات.)
+
+### إضافة مفتاح Gemini (للذكاء الاصطناعي)
+
+١. سجّل دخول كأدمن
+٢. **الإعدادات → مفاتيح التكامل → Gemini API key**
+٣. الصق المفتاح → **حفظ** → اضغط **اختبار** للتحقق
+
+المفتاح يُخزَّن **مشفّراً** (AES-256-GCM) في قاعدة البيانات، يبقى عبر
+إعادات النشر، ولا يظهر في أي ملف.
+
+---
+
+## النشر اليدوي (بديل عن Blueprint)
+
+إذا فضّلت إنشاء الخدمة يدوياً:
+
+١. **New → Web Service** → اربط المستودع
+٢. Region: `Frankfurt` — Branch: `main` — Runtime: `Node`
+٣. **Build Command:**
+   ```bash
+   npm install --include=dev && cd server && npm install --include=dev && cd .. && npm run build && cd server && npm run build && cp src/schema.sql dist/schema.sql
+   ```
+٤. **Start Command:** `cd server && node dist/index.js`
+٥. **Health Check Path:** `/health`
+٦. أضف نفس المتغيرات من جدول الخطوة ٢
+
+---
+
+## ما بعد النشر — مراقبة وتشغيل
 
 ### مراقبة الأداء
 

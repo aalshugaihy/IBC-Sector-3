@@ -1,17 +1,18 @@
 # Render Blueprint — Investment & Business Services Sector Tracker
-# Deploy with: https://render.com/deploy?repo=https://github.com/aalshugaihy/ibc-sector-3
 #
-# Provisions one PostgreSQL database + one combined Node web service that
-# serves both the Express API and the built React frontend.
-
-databases:
-  - name: ibc-sector-3-db
-    databaseName: ibc_tasks
-    user: ibc
-    plan: free
-    region: frankfurt
-    postgresMajorVersion: "16"
-    ipAllowList: []
+# This blueprint provisions ONE web service that serves both the API and
+# the built React frontend. You bring your own PostgreSQL via the
+# DATABASE_URL env var (Render free tier allows only ONE free DB per
+# account; we keep the DB out of the blueprint so it works regardless).
+#
+# Compatible DB providers (any of):
+#   • A Render PostgreSQL instance you already created
+#   • Neon  (https://neon.tech)       — free tier, never expires
+#   • Supabase (https://supabase.com) — free tier, never expires
+#   • Self-hosted PostgreSQL with SSL enabled
+#
+# After applying this blueprint, open the new web service and paste your
+# Postgres connection string into the DATABASE_URL environment variable.
 
 services:
   - type: web
@@ -40,19 +41,19 @@ services:
         value: "true"
       - key: PGSSL
         value: "true"
+      # Required — paste your Postgres connection string here after deploy.
+      # Format: postgresql://USER:PASS@HOST:PORT/DBNAME
       - key: DATABASE_URL
-        fromDatabase:
-          name: ibc-sector-3-db
-          property: connectionString
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ORIGIN
         sync: false
       # Optional. Can also be added later from the in-app Settings page
-      # (admin → Settings → Integrations) without a redeploy.
+      # (admin → Settings → Integration keys) without a redeploy.
       - key: GEMINI_API_KEY
         sync: false
-      # Optional first-admin auto-create. Set both to seed an admin on
+      # Optional first-admin auto-create. Set both to seed the admin on
       # first boot when the users table is empty.
       - key: BOOTSTRAP_ADMIN_EMAIL
         sync: false
