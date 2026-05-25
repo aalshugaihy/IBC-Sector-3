@@ -1,0 +1,52 @@
+# Render Blueprint — Investment & Business Services Sector Tracker
+# Deploy with: https://render.com/deploy?repo=https://github.com/aalshugaihy/ibc-sector-3
+#
+# Provisions one PostgreSQL database + one combined Node web service that
+# serves both the Express API and the built React frontend.
+
+databases:
+  - name: ibc-sector-3-db
+    databaseName: ibc_tasks
+    user: ibc
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "16"
+    ipAllowList: []
+
+services:
+  - type: web
+    name: ibc-sector-3
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    autoDeploy: true
+    buildCommand: |
+      npm install --include=dev
+      cd server && npm install --include=dev
+      cd ..
+      npm run build
+      cd server && npm run build && cp src/schema.sql dist/schema.sql
+    startCommand: cd server && node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: SERVE_STATIC
+        value: "true"
+      - key: PGSSL
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ibc-sector-3-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

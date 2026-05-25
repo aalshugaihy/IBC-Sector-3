@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import pool from './db.js';
 import authRoutes from './routes/auth.js';
 import taskRoutes from './routes/tasks.js';
@@ -76,6 +76,27 @@ app.use('/api/custom-roles', customRoleRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/committees', committeeRoutes);
 app.use('/api/chat', chatRoutes);
+
+// In single-service deployments (e.g. Render), serve the built frontend
+// from the same Express process. SERVE_STATIC=true enables this; otherwise
+// the frontend is served separately by nginx/Vite as in the Docker setup.
+if (process.env.SERVE_STATIC === 'true') {
+  const candidatePaths = [
+    resolve(__dirname, '..', '..', 'dist'),
+    resolve(__dirname, '..', '..', '..', 'dist'),
+    resolve(process.cwd(), 'dist'),
+  ];
+  const staticDir = candidatePaths.find((p) => existsSync(join(p, 'index.html')));
+  if (staticDir) {
+    console.log(`Serving static frontend from ${staticDir}`);
+    app.use(express.static(staticDir, { maxAge: '1y', index: false }));
+    app.get(/^(?!\/api\/|\/health$).*/, (_req, res) => {
+      res.sendFile(join(staticDir, 'index.html'));
+    });
+  } else {
+    console.warn('SERVE_STATIC=true but no dist/index.html found in candidate paths');
+  }
+}
 
 // Initialize database schema
 async function initDB() {
