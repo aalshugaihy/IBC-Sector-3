@@ -1,0 +1,213 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: userId (UID)
+// Fields:
+//   - uid: string (required)
+//   - displayName: string (optional)
+//   - email: string (required, email format)
+//   - photoURL: string (optional, URL format)
+//   - role: string (required, 'admin', 'member', or 'monitor')
+//
+// Collection: tasks
+// Document ID: taskId
+// Fields:
+//   - title: string (required)
+//   - department: string (required)
+//   - month: string (required)
+//   - status: string (required, 'not-started', 'ongoing', 'completed', 'overdue', 'postponed', 'cancelled')
+//   - assignedTo: string (optional, UID)
+//   - teamMembers: list (optional, list of objects with userId and role)
+//     - userId: string
+//     - role: string
+//   - classification: string (optional)
+//   - plannedDate: string (optional, date format)
+//   - actualDate: string (optional, date format)
+//   - startDate: string (optional, date format)
+//   - endDate: string (optional, date format)
+//   - completionPercentage: number (optional)
+//   - createdAt: timestamp (optional)
+//   - notes: string (optional)
+//   - obstacles: string (optional)
+//   - updatedAt: timestamp (optional)
+//
+// Collection: notifications
+// Document ID: notificationId
+// Fields:
+//   - userId: string (required, UID)
+//   - title: string (required)
+//   - message: string (required)
+//   - read: boolean (required)
+//   - createdAt: timestamp (required)
+//   - taskId: string (optional)
+//
+// Collection: requests
+// Document ID: requestId
+// Fields:
+//   - timestamp: timestamp (required)
+//   - type: string (optional)
+//   - userId: string (optional, UID)
+//
+// Collection: reports
+// Document ID: reportId
+// Fields:
+//   - title: string (required)
+//   - content: string (required)
+//   - period: string (optional)
+//   - createdAt: timestamp (required)
+//   - generatedBy: string (optional, UID)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        ((request.auth.token.email == "a.alshugaihy@gmail.com" && request.auth.token.email_verified == true) || 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'displayName', 'email', 'photoURL', 'role', 'isPending', 'customPermissions']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['admin', 'member', 'monitor', 'custom'] &&
+             (!('customPermissions' in data) || data.customPermissions is list || data.customPermissions == null);
+    }
+
+    function isValidTask(data) {
+      let allowedFields = [
+        'title', 'department', 'month', 'status', 'priority', 'classification',
+        'completionPercentage', 'teamMembers', 'assignedTo', 'plannedDate',
+        'startDate', 'endDate', 'actualDate', 'notes', 'obstacles', 'dependencies',
+        'parentTaskId', 'createdAt', 'updatedAt', 'history', 'isArchived', 'refNo'
+      ];
+      return data.keys().hasOnly(allowedFields) &&
+             data.title is string && data.title.size() > 0 &&
+             data.department is string &&
+             data.month is string &&
+             data.status in ['not-started', 'ongoing', 'completed', 'overdue', 'postponed', 'cancelled'] &&
+             (!('priority' in data) || data.priority in ['low', 'medium', 'high', 'urgent']) &&
+             (!('classification' in data) || data.classification is string) &&
+             (!('completionPercentage' in data) || data.completionPercentage is number) &&
+             (!('teamMembers' in data) || (data.teamMembers is list && data.teamMembers.size() <= 50)) &&
+             (!('assignedTo' in data) || data.assignedTo is string) &&
+             (!('plannedDate' in data) || data.plannedDate is string) &&
+             (!('startDate' in data) || data.startDate is string) &&
+             (!('endDate' in data) || data.endDate is string) &&
+             (!('actualDate' in data) || data.actualDate is string) &&
+             (!('notes' in data) || data.notes is string) &&
+             (!('obstacles' in data) || data.obstacles is string) &&
+             (!('dependencies' in data) || data.dependencies is list) &&
+             (!('parentTaskId' in data) || data.parentTaskId is string) &&
+             (!('isArchived' in data) || data.isArchived is bool) &&
+             (!('refNo' in data) || data.refNo is string) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp) &&
+             (!('history' in data) || data.history is list);
+    }
+
+    function isValidNotification(data) {
+      return hasOnlyAllowedFields(['userId', 'title', 'message', 'read', 'createdAt', 'taskId', 'type']) &&
+             data.userId is string &&
+             data.title is string &&
+             data.message is string &&
+             data.read is bool &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidRequest(data) {
+      return hasOnlyAllowedFields(['timestamp', 'type', 'userId']) &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidReport(data) {
+      return hasOnlyAllowedFields(['title', 'content', 'period', 'createdAt', 'generatedBy']) &&
+             data.title is string && data.title.size() > 0 &&
+             data.content is string &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidCustomRole(data) {
+      return hasOnlyAllowedFields(['name', 'permissions', 'createdAt', 'color']) &&
+             data.name is map && data.name.ar is string && data.name.en is string &&
+             data.permissions is list &&
+             (!('color' in data) || data.color is string);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isAdmin() && isValidTask(request.resource.data);
+      allow update: if isAuthenticated() && isValidTask(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /requests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidRequest(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidReport(request.resource.data);
+      allow update: if isAuthenticated() && isValidReport(request.resource.data) && isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
+      allow update: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid) && isValidNotification(request.resource.data);
+      allow delete: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid);
+    }
+
+    match /customRoles/{roleId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin() && isValidCustomRole(request.resource.data);
+    }
+  }
+}

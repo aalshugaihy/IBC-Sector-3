@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ibc_tasks
+      POSTGRES_USER: ibc
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ibc_password}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ibc -d ibc_tasks"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://ibc:${DB_PASSWORD:-ibc_password}@db:5432/ibc_tasks
+      JWT_SECRET: ${JWT_SECRET:-ibc-secret-change-in-production}
+      PORT: "3001"
+    expose:
+      - "3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${WEB_PORT:-80}:8080"
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  pgdata:
