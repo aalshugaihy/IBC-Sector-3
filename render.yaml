@@ -48,5 +48,13 @@ services:
         generateValue: true
       - key: CORS_ORIGIN
         sync: false
+      # Optional. Can also be added later from the in-app Settings page
+      # (admin → Settings → Integrations) without a redeploy.
       - key: GEMINI_API_KEY
+        sync: false
+      # Optional first-admin auto-create. Set both to seed an admin on
+      # first boot when the users table is empty.
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD
         sync: false

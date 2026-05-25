@@ -198,3 +198,47 @@ BEGIN
     UPDATE tasks SET request_no = next_request_no() WHERE id = r.id;
   END LOOP;
 END $$;
+
+-- ===== System settings (runtime configuration & secret vault) =====
+-- Stores app-level configuration that admins can edit from the UI without
+-- a redeploy: brand identity, integration keys, feature flags.
+-- Secrets are stored encrypted (AES-256-GCM) using the SETTINGS_KEY env var
+-- (derived from JWT_SECRET when not set explicitly).
+CREATE TABLE IF NOT EXISTS system_settings (
+  key VARCHAR(100) PRIMARY KEY,
+  value JSONB,                    -- non-secret values stored as-is
+  encrypted_value TEXT,           -- secrets stored encrypted (base64)
+  is_secret BOOLEAN DEFAULT false,
+  description TEXT,
+  updated_by UUID REFERENCES users(uid) ON DELETE SET NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Seed default settings (idempotent — only inserts if missing)
+INSERT INTO system_settings (key, value, is_secret, description) VALUES
+  ('app.name_ar',     '"قطاع الاستثمار وخدمات الأعمال"'::jsonb,  false, 'Sector display name (Arabic)'),
+  ('app.name_en',     '"Investment & Business Services Sector"'::jsonb, false, 'Sector display name (English)'),
+  ('app.organization','"الهيئة العامة للمساحة والمعلومات الجيومكانية"'::jsonb, false, 'Parent organization name'),
+  ('feature.ai_chat',  'true'::jsonb,  false, 'Enable AI chatbot (requires gemini.api_key)'),
+  ('feature.ai_reports','true'::jsonb, false, 'Enable AI-generated reports'),
+  ('feature.public_signup','true'::jsonb, false, 'Allow self-registration (first user is admin)')
+ON CONFLICT (key) DO NOTHING;
+
+CREATE INDEX IF NOT EXISTS idx_system_settings_secret ON system_settings(is_secret);
+
+-- ===== Audit log (immutable record of admin actions) =====
+CREATE TABLE IF NOT EXISTS audit_log (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(uid) ON DELETE SET NULL,
+  user_email VARCHAR(255),
+  action VARCHAR(100) NOT NULL,
+  entity_type VARCHAR(50),
+  entity_id VARCHAR(255),
+  details JSONB,
+  ip_address VARCHAR(45),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);

@@ -156,4 +156,35 @@ export const api = {
   // Chat
   chat: (message: string, history: { role: string; text: string }[], taskSummary: string) =>
     request('/chat', { method: 'POST', body: JSON.stringify({ message, history, taskContext: taskSummary }) }),
+
+  // System settings (admin)
+  listSettings: () => request('/settings'),
+
+  publicSettings: () => request('/settings/public'),
+
+  updateSetting: (key: string, value: unknown, isSecret: boolean) =>
+    request(`/settings/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value, isSecret }),
+    }),
+
+  deleteSetting: (key: string) =>
+    request(`/settings/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+
+  testSetting: (key: string) =>
+    request(`/settings/test/${encodeURIComponent(key)}`, { method: 'POST' }),
+
+  // System diagnostics (admin)
+  systemInfo: () => request('/system/info'),
+
+  systemAudit: (limit = 100, offset = 0) =>
+    request(`/system/audit?limit=${limit}&offset=${offset}`),
+
+  downloadBackup: async (): Promise<Blob> => {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/system/backup`, { headers });
+    if (!res.ok) throw new Error(`Backup failed: ${res.status}`);
+    return res.blob();
+  },
 };

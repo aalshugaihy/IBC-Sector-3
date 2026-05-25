@@ -14,6 +14,9 @@ import customRoleRoutes from './routes/customRoles.js';
 import departmentRoutes from './routes/departments.js';
 import committeeRoutes from './routes/committees.js';
 import chatRoutes from './routes/chat.js';
+import settingsRoutes from './routes/settings.js';
+import systemRoutes from './routes/system.js';
+import bcrypt from 'bcryptjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -76,6 +79,8 @@ app.use('/api/custom-roles', customRoleRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/committees', committeeRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/system', systemRoutes);
 
 // In single-service deployments (e.g. Render), serve the built frontend
 // from the same Express process. SERVE_STATIC=true enables this; otherwise
@@ -117,8 +122,33 @@ async function initDB() {
   }
 }
 
+// Optional first-admin bootstrap. When BOOTSTRAP_ADMIN_EMAIL +
+// BOOTSTRAP_ADMIN_PASSWORD are set AND no users exist yet, create the
+// initial admin automatically. Useful for headless deployments where you
+// can't open the registration page.
+async function bootstrapAdmin() {
+  const email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim();
+  const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+  if (!email || !password) return;
+  try {
+    const { rows } = await pool.query('SELECT COUNT(*)::int AS c FROM users');
+    if (rows[0].c > 0) return;
+    const hash = await bcrypt.hash(password, 10);
+    const displayName = process.env.BOOTSTRAP_ADMIN_NAME || email.split('@')[0];
+    await pool.query(
+      `INSERT INTO users (email, password_hash, display_name, role, photo_url)
+       VALUES ($1, $2, $3, 'admin', $4)`,
+      [email, hash, displayName, `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`]
+    );
+    console.log(`Bootstrap admin created: ${email}`);
+  } catch (err) {
+    console.error('Bootstrap admin failed:', err);
+  }
+}
+
 async function start() {
   await initDB();
+  await bootstrapAdmin();
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
   });
